@@ -4,6 +4,8 @@
 
 A Python script that uses the scientifically proven most irritating sound ever made (the Crazy Bus theme) to psychologically terrorize you into being productive. Every 5 minutes, it downloads and plays the Crazy Bus theme song on endless repeat until you press ENTER and get back to work.
 
+[🎪 Experience the Crazy Bus Theme (WARNING: EXTREMELY ANNOYING)](https://www.youtube.com/watch?v=sC0cvwnG0Ik)
+
 ## Features 🚨
 
 - **Live countdown timer** - Always know exactly how much time you have left before audio hell
@@ -145,6 +147,6 @@ The Crazy Bus theme song is automatically downloaded from YouTube and remains th
 
 ---
 
-**Remember: You're not just fighting procrastination. You're continuing a cultural lineage that stretches from 1928's "Sonny Boy" through 2004's Crazy Bus to your productive future.** 🎪✨
+**Remember: You're not just fighting procrastination. You're continuing a cultural lineage through 2004's Crazy Bus to your productive future.** 🎪✨
 
 *Happy coding! (You literally have no choice now.)*
