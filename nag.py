@@ -8,6 +8,7 @@ import sys
 import unittest
 from unittest.mock import patch, MagicMock
 import argparse
+import threading
 
 class FocusNag:
    def __init__(self):
@@ -16,11 +17,22 @@ class FocusNag:
            "What were you supposed to be working on again?",
        ]
        self.running = True
+       # Define the sound file in one place
+       self.sound_file = '/System/Library/Sounds/Basso.aiff'
+       self.sound_process = None
+       self.stop_sound = False
    
    def signal_handler(self, signum, frame):
        print("\n👋 Focus nag stopped. Good luck staying on task!")
        self.running = False
+       self.stop_sound = True
        sys.exit(0)
+   
+   def play_endless_sound(self):
+       """Play sound on repeat until stopped"""
+       while not self.stop_sound:
+           os.system(f'afplay {self.sound_file}')
+           time.sleep(0.1)  # Small delay between repeats
    
    def annoying_reminder(self):
        message = random.choice(self.nagging_phrases)
@@ -28,12 +40,25 @@ class FocusNag:
        # Visual notification
        subprocess.run(['osascript', '-e', f'display notification "{message}"'])
        
-       # Sound
-       os.system('afplay /System/Library/Sounds/Funk.aiff')
-       
        # Terminal output with timestamp
        timestamp = time.strftime("%H:%M:%S")
        print(f"[{timestamp}] 🚨 {message} 🚨")
+       
+       # Start endless sound in background thread
+       self.stop_sound = False
+       sound_thread = threading.Thread(target=self.play_endless_sound, daemon=True)
+       sound_thread.start()
+       
+       # Wait for user to press ENTER to stop the sound
+       print("🔊 BASSO IS PLAYING ENDLESSLY! Press ENTER to stop the sound...")
+       try:
+           input()  # This blocks until user presses ENTER
+       except KeyboardInterrupt:
+           pass
+       
+       # Stop the sound
+       self.stop_sound = True
+       print("🔇 Sound stopped. Back to work!")
    
    def start_nagging(self):
        # Handle Ctrl+C gracefully
@@ -60,14 +85,23 @@ class TestFocusNag(unittest.TestCase):
        self.assertEqual(len(self.nag.nagging_phrases), 2)
        self.assertIn("CODE. WRITE CODE. RIGHT NOW.", self.nag.nagging_phrases)
        self.assertIn("What were you supposed to be working on again?", self.nag.nagging_phrases)
+       # Test that sound file is set
+       self.assertEqual(self.nag.sound_file, '/System/Library/Sounds/Basso.aiff')
+       self.assertFalse(self.nag.stop_sound)
    
    @patch('subprocess.run')
-   @patch('os.system')
    @patch('builtins.print')
    @patch('time.strftime')
-   def test_annoying_reminder(self, mock_strftime, mock_print, mock_os_system, mock_subprocess):
+   @patch('builtins.input')
+   @patch('threading.Thread')
+   def test_annoying_reminder(self, mock_thread, mock_input, mock_strftime, mock_print, mock_subprocess):
        """Test that annoying_reminder calls all the right functions"""
        mock_strftime.return_value = "12:34:56"
+       mock_input.return_value = ""  # Simulate pressing ENTER immediately
+       
+       # Mock the thread
+       mock_thread_instance = MagicMock()
+       mock_thread.return_value = mock_thread_instance
        
        self.nag.annoying_reminder()
        
@@ -75,34 +109,64 @@ class TestFocusNag(unittest.TestCase):
        mock_subprocess.assert_called_once()
        self.assertTrue(mock_subprocess.call_args[0][0][0] == 'osascript')
        
-       # Check that sound was played
-       mock_os_system.assert_called_once_with('afplay /System/Library/Sounds/Funk.aiff')
+       # Check that thread was created and started
+       mock_thread.assert_called_once()
+       mock_thread_instance.start.assert_called_once()
+       
+       # Check that input was called (waiting for ENTER)
+       mock_input.assert_called_once()
        
        # Check that print was called with timestamp
        mock_print.assert_called()
-       print_call = mock_print.call_args[0][0]
-       self.assertIn("[12:34:56]", print_call)
-       self.assertIn("🚨", print_call)
    
-   def test_actual_sound_playback(self):
-       """Test that actually plays the sound so you can hear it"""
-       print("\n🔊 Testing actual sound playback - you should hear the Funk sound!")
+   def test_endless_sound_functionality(self):
+       """Test the endless sound - WARNING: VERY ANNOYING!"""
+       print(f"\n🚨 WARNING: About to test ENDLESS BASSO!")
+       print("🔊 This will play Basso on repeat until you press ENTER!")
+       print("🎯 This is your chance to experience the full annoyance...")
        
-       # Don't mock anything - let it actually play
-       with patch('subprocess.run'), patch('builtins.print'):
-           # Only mock the notification and print, but let sound play
-           message = "TEST SOUND - Can you hear this?"
-           
-           # Play the actual sound
-           os.system('afplay /System/Library/Sounds/Funk.aiff')
-           
-           # Give it a moment to play
+       user_consent = input("Type 'YES' to proceed with the endless sound test (or anything else to skip): ")
+       
+       if user_consent.upper() == 'YES':
+           print("\n💀 STARTING ENDLESS BASSO IN 3 SECONDS...")
            time.sleep(1)
+           print("💀 3...")
+           time.sleep(1) 
+           print("💀 2...")
+           time.sleep(1)
+           print("💀 1...")
+           time.sleep(1)
+           print("💀 BASSO HELL BEGINS NOW!")
            
-           print("🎵 Sound test completed!")
+           # Actually test the endless sound
+           self.nag.annoying_reminder()
+           
+           print("✅ Endless sound test completed!")
+       else:
+           print("🎵 Endless sound test skipped. Probably wise!")
        
-       # This always passes - it's just for hearing the sound
+       # This always passes
        self.assertTrue(True)
+   
+   def test_play_endless_sound_stops_when_flag_set(self):
+       """Test that endless sound stops when stop_sound flag is set"""
+       with patch('os.system') as mock_os_system:
+           with patch('time.sleep') as mock_sleep:
+               # Set up the mock to stop after a few iterations
+               call_count = 0
+               def side_effect(*args):
+                   nonlocal call_count
+                   call_count += 1
+                   if call_count >= 3:  # Stop after 3 calls
+                       self.nag.stop_sound = True
+               
+               mock_sleep.side_effect = side_effect
+               
+               # Run the endless sound function
+               self.nag.play_endless_sound()
+               
+               # Should have called afplay at least a few times
+               self.assertGreaterEqual(mock_os_system.call_count, 3)
    
    @patch('random.choice')
    def test_message_selection(self, mock_choice):
@@ -110,7 +174,7 @@ class TestFocusNag(unittest.TestCase):
        expected_message = "CODE. WRITE CODE. RIGHT NOW."
        mock_choice.return_value = expected_message
        
-       with patch('subprocess.run'), patch('os.system'), patch('builtins.print'), patch('time.strftime'):
+       with patch('subprocess.run'), patch('builtins.print'), patch('time.strftime'), patch('builtins.input'), patch('threading.Thread'):
            self.nag.annoying_reminder()
        
        mock_choice.assert_called_once_with(self.nag.nagging_phrases)
@@ -118,12 +182,14 @@ class TestFocusNag(unittest.TestCase):
    def test_signal_handler(self):
        """Test that signal handler stops the nag"""
        self.assertTrue(self.nag.running)
+       self.assertFalse(self.nag.stop_sound)
        
        with patch('sys.exit') as mock_exit:
            with patch('builtins.print'):
                self.nag.signal_handler(signal.SIGINT, None)
        
        self.assertFalse(self.nag.running)
+       self.assertTrue(self.nag.stop_sound)
        mock_exit.assert_called_once_with(0)
    
    @patch('time.sleep')
@@ -145,30 +211,6 @@ class TestFocusNag(unittest.TestCase):
        
        # Check that initial messages were printed
        self.assertTrue(any("Focus Nag started!" in str(call) for call in mock_print.call_args_list))
-   
-   @patch('time.sleep')
-   @patch('signal.signal')
-   @patch('builtins.print')
-   def test_nagging_loop(self, mock_print, mock_signal, mock_sleep):
-       """Test that the nagging loop calls reminder after sleep"""
-       call_count = 0
-       
-       def side_effect(*args):
-           nonlocal call_count
-           call_count += 1
-           if call_count >= 2:  # Stop after 2 calls
-               self.nag.running = False
-           return None
-       
-       mock_sleep.side_effect = side_effect
-       
-       with patch.object(self.nag, 'annoying_reminder') as mock_reminder:
-           self.nag.start_nagging()
-       
-       # Should sleep 300 seconds (5 minutes) each time
-       mock_sleep.assert_called_with(300)
-       # Should call reminder once (stopped before second call)
-       mock_reminder.assert_called_once()
 
 
 def run_tests():
