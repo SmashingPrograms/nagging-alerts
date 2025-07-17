@@ -184,8 +184,6 @@ class FocusNag:
                self.annoying_reminder()
                self.start_time = time.time()
 
-# ... rest of the test code stays the same ...
-
 
 class TestFocusNag(unittest.TestCase):
    
@@ -225,9 +223,18 @@ class TestFocusNag(unittest.TestCase):
        
        self.nag.annoying_reminder()
        
-       # Check that subprocess.run was called for notification
-       mock_subprocess.assert_called_once()
-       self.assertTrue(mock_subprocess.call_args[0][0][0] == 'osascript')
+       # Check that subprocess.run was called multiple times (notification + pkill)
+       self.assertGreaterEqual(mock_subprocess.call_count, 2)
+       
+       # Check specifically that the notification was called
+       notification_calls = [call for call in mock_subprocess.call_args_list 
+                           if 'osascript' in str(call)]
+       self.assertEqual(len(notification_calls), 1)
+       
+       # Check specifically that pkill was called for cleanup
+       pkill_calls = [call for call in mock_subprocess.call_args_list 
+                     if 'pkill' in str(call)]
+       self.assertEqual(len(pkill_calls), 1)
        
        # Check that thread was created and started
        mock_thread.assert_called_once()
